@@ -1,7 +1,7 @@
 //! The simplest possible example that does something.
 
 use ggez::event;
-use ggez::graphics::{self};
+use ggez::graphics::{self, Color};
 use ggez::{Context, GameResult};
 
 const GRID_CELL_SIZE: (f32, f32) = (50.0, 50.0);
@@ -12,6 +12,8 @@ const WINDOW_SIZE: (f32, f32) = (
     GRID_SIZE.0 as f32 * GRID_CELL_SIZE.0,
     GRID_SIZE.1 as f32 * GRID_CELL_SIZE.1,
 );
+
+const PLAYER_SIZE: f32 = 10.0;
 
 #[rustfmt::skip]
 const MAP: [i32; (GRID_SIZE.0 * GRID_SIZE.1) as usize] = [
@@ -71,8 +73,53 @@ impl Cell {
     }
 }
 
+struct Player {
+    x: f32,
+    y: f32,
+    orientation: f32,
+}
+
+impl Player {
+    fn new() -> Self {
+        Player {
+            x: WINDOW_SIZE.0 / 2.0,
+            y: WINDOW_SIZE.1 / 2.0,
+            orientation: std::f32::consts::PI,
+        }
+    }
+    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+        let points: Vec<ggez::mint::Point2<f32>> = vec![
+            ggez::mint::Point2 {
+                x: self.x + self.orientation.cos() * PLAYER_SIZE * 2.0,
+                y: self.y + self.orientation.sin() * PLAYER_SIZE * 2.0,
+            },
+            ggez::mint::Point2 {
+                x: self.x
+                    + (self.orientation + 2.0 * std::f32::consts::PI / 3.0).cos() * PLAYER_SIZE,
+                y: self.x
+                    + (self.orientation + 2.0 * std::f32::consts::PI / 3.0).sin() * PLAYER_SIZE,
+            },
+            ggez::mint::Point2 {
+                x: self.x
+                    + (self.orientation - 2.0 * std::f32::consts::PI / 3.0).cos() * PLAYER_SIZE,
+                y: self.x
+                    + (self.orientation - 2.0 * std::f32::consts::PI / 3.0).sin() * PLAYER_SIZE,
+            },
+        ];
+
+        let triangle = graphics::Mesh::new_polygon(
+            ctx,
+            graphics::DrawMode::stroke(1.0),
+            &points,
+            Color::BLACK,
+        )?;
+        graphics::draw(ctx, &triangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
+    }
+}
+
 struct MainState {
     cells: [Cell; GRID_SIZE.0 as usize * GRID_SIZE.1 as usize],
+    player: Player,
 }
 
 impl MainState {
@@ -85,7 +132,8 @@ impl MainState {
                 cells[cell_index] = Cell::new(i, j, MAP[cell_index] == 0);
             }
         }
-        let s = MainState { cells: cells };
+        let player = Player::new();
+        let s = MainState { cells, player };
         Ok(s)
     }
 }
@@ -101,6 +149,7 @@ impl event::EventHandler for MainState {
         for cell in &self.cells {
             cell.draw(ctx)?;
         }
+        self.player.draw(ctx)?;
 
         graphics::present(ctx)?;
         Ok(())
