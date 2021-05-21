@@ -1,0 +1,9 @@
+[package]
+name = "raycasting"
+version = "0.1.0"
+authors = ["EtienneGrall <etienneg@theodo.fr>"]
+edition = "2018"
+
+[dependencies]
+ggez = "0.6.0-rc1"
+glam = "0.12"
