@@ -1,6 +1,6 @@
 //! The simplest possible example that does something.
 
-use ggez::event;
+use ggez::event::{self, KeyCode, KeyMods};
 use ggez::graphics::{self, Color};
 use ggez::{Context, GameResult};
 
@@ -14,6 +14,7 @@ const WINDOW_SIZE: (f32, f32) = (
 );
 
 const PLAYER_SIZE: f32 = 10.0;
+const PLAYER_ROTATION_SPEED: f32 = 0.10;
 
 #[rustfmt::skip]
 const MAP: [i32; (GRID_SIZE.0 * GRID_SIZE.1) as usize] = [
@@ -153,6 +154,25 @@ impl event::EventHandler for MainState {
 
         graphics::present(ctx)?;
         Ok(())
+    }
+
+    fn key_down_event(
+        &mut self,
+        ctx: &mut Context,
+        keycode: KeyCode,
+        _keymod: KeyMods,
+        _repeat: bool,
+    ) {
+        match keycode {
+            KeyCode::Left => {
+                self.player.orientation -= PLAYER_ROTATION_SPEED;
+            }
+            KeyCode::Right => {
+                self.player.orientation += PLAYER_ROTATION_SPEED;
+            }
+            KeyCode::Escape => event::quit(ctx),
+            _ => (),
+        }
     }
 }
 
