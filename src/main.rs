@@ -4,6 +4,8 @@ use ggez::event::{self, KeyCode, KeyMods};
 use ggez::graphics::{self, Color};
 use ggez::{Context, GameResult};
 
+const PI: f32 = std::f32::consts::PI;
+
 const GRID_CELL_SIZE: (f32, f32) = (50.0, 50.0);
 
 const GRID_SIZE: (u16, u16) = (10, 10);
@@ -14,7 +16,8 @@ const WINDOW_SIZE: (f32, f32) = (
 );
 
 const PLAYER_SIZE: f32 = 10.0;
-const PLAYER_ROTATION_SPEED: f32 = 0.10;
+const PLAYER_ROTATION_SPEED: f32 = 0.20;
+const PLAYER_MOVE_SPEED: f32 = 1.50;
 
 #[rustfmt::skip]
 const MAP: [i32; (GRID_SIZE.0 * GRID_SIZE.1) as usize] = [
@@ -85,7 +88,7 @@ impl Player {
         Player {
             x: WINDOW_SIZE.0 / 2.0,
             y: WINDOW_SIZE.1 / 2.0,
-            orientation: std::f32::consts::PI,
+            orientation: 0.0,
         }
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
@@ -95,16 +98,12 @@ impl Player {
                 y: self.y + self.orientation.sin() * PLAYER_SIZE * 2.0,
             },
             ggez::mint::Point2 {
-                x: self.x
-                    + (self.orientation + 2.0 * std::f32::consts::PI / 3.0).cos() * PLAYER_SIZE,
-                y: self.x
-                    + (self.orientation + 2.0 * std::f32::consts::PI / 3.0).sin() * PLAYER_SIZE,
+                x: self.x + (self.orientation + 2.0 * PI / 3.0).cos() * PLAYER_SIZE,
+                y: self.y + (self.orientation + 2.0 * PI / 3.0).sin() * PLAYER_SIZE,
             },
             ggez::mint::Point2 {
-                x: self.x
-                    + (self.orientation - 2.0 * std::f32::consts::PI / 3.0).cos() * PLAYER_SIZE,
-                y: self.x
-                    + (self.orientation - 2.0 * std::f32::consts::PI / 3.0).sin() * PLAYER_SIZE,
+                x: self.x + (self.orientation - 2.0 * PI / 3.0).cos() * PLAYER_SIZE,
+                y: self.y + (self.orientation - 2.0 * PI / 3.0).sin() * PLAYER_SIZE,
             },
         ];
 
@@ -115,6 +114,19 @@ impl Player {
             Color::BLACK,
         )?;
         graphics::draw(ctx, &triangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
+    }
+
+    fn rotate_right(&mut self) {
+        self.orientation = (self.orientation + PLAYER_ROTATION_SPEED) % (2.0 * PI);
+    }
+
+    fn rotate_left(&mut self) {
+        self.orientation = (self.orientation - PLAYER_ROTATION_SPEED) % (2.0 * PI);
+    }
+
+    fn move_forward(&mut self) {
+        self.x += self.orientation.cos() * PLAYER_MOVE_SPEED;
+        self.y += self.orientation.sin() * PLAYER_MOVE_SPEED;
     }
 }
 
@@ -164,11 +176,14 @@ impl event::EventHandler for MainState {
         _repeat: bool,
     ) {
         match keycode {
+            KeyCode::Up => {
+                self.player.move_forward();
+            }
             KeyCode::Left => {
-                self.player.orientation -= PLAYER_ROTATION_SPEED;
+                self.player.rotate_left();
             }
             KeyCode::Right => {
-                self.player.orientation += PLAYER_ROTATION_SPEED;
+                self.player.rotate_right();
             }
             KeyCode::Escape => event::quit(ctx),
             _ => (),
