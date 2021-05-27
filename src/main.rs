@@ -16,8 +16,11 @@ const WINDOW_SIZE: (f32, f32) = (
 );
 
 const PLAYER_SIZE: f32 = 10.0;
-const PLAYER_ROTATION_SPEED: f32 = 0.20;
-const PLAYER_MOVE_SPEED: f32 = 1.50;
+const PLAYER_ROTATION_SPEED: f32 = 0.1;
+const PLAYER_MOVE_SPEED: f32 = 3.0;
+
+const RAYS_CONE_ANGLE: f32 = PI / 4.0;
+const NUMBER_OF_RAYS: u16 = 7;
 
 #[rustfmt::skip]
 const MAP: [i32; (GRID_SIZE.0 * GRID_SIZE.1) as usize] = [
@@ -77,6 +80,59 @@ impl Cell {
     }
 }
 
+#[derive(Copy, Clone)]
+struct Ray {
+    x: f32,
+    y: f32,
+    orientation: f32,
+    angle_offset: f32,
+}
+
+impl Ray {
+    pub fn default() -> Self {
+        Ray {
+            x: 0.0,
+            y: 0.0,
+            angle_offset: 0.0,
+            orientation: 0.0,
+        }
+    }
+
+    fn new(x: f32, y: f32, angle_offset: f32, orientation: f32) -> Self {
+        Ray {
+            x,
+            y,
+            angle_offset,
+            orientation,
+        }
+    }
+
+    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+        // TODO compute this length
+        let DEFAULT_LENGTH = 100.0;
+        let points: Vec<ggez::mint::Point2<f32>> = vec![
+            ggez::mint::Point2 {
+                x: self.x,
+                y: self.y,
+            },
+            ggez::mint::Point2 {
+                x: self.x + (self.angle_offset + self.orientation).cos() * DEFAULT_LENGTH,
+                y: self.y + (self.angle_offset + self.orientation).sin() * DEFAULT_LENGTH,
+            },
+        ];
+
+        let line = graphics::Mesh::new_line(ctx, &points, 1.0, Color::BLACK)?;
+        graphics::draw(ctx, &line, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
+    }
+
+    fn update_position(&mut self, player: &mut Player) -> GameResult {
+        self.x = player.x;
+        self.y = player.y;
+        self.orientation = player.orientation + self.angle_offset;
+        Ok(())
+    }
+}
+
 struct Player {
     x: f32,
     y: f32,
@@ -133,6 +189,7 @@ impl Player {
 struct MainState {
     cells: [Cell; GRID_SIZE.0 as usize * GRID_SIZE.1 as usize],
     player: Player,
+    rays: [Ray; NUMBER_OF_RAYS as usize],
 }
 
 impl MainState {
@@ -146,13 +203,29 @@ impl MainState {
             }
         }
         let player = Player::new();
-        let s = MainState { cells, player };
+
+        let mut rays: [Ray; NUMBER_OF_RAYS as usize] = [Ray::default(); NUMBER_OF_RAYS as usize];
+        for i in 0..NUMBER_OF_RAYS {
+            let offset = -(RAYS_CONE_ANGLE / 2.0)
+                + RAYS_CONE_ANGLE * (i as f32 / (NUMBER_OF_RAYS - 1) as f32);
+            rays[i as usize] = Ray::new(player.x, player.y, offset, player.orientation);
+        }
+
+        let s = MainState {
+            cells,
+            player,
+            rays,
+        };
         Ok(s)
     }
 }
 
 impl event::EventHandler for MainState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
+        let rays = &mut self.rays;
+        for ray in rays {
+            ray.update_position(&mut self.player)?;
+        }
         Ok(())
     }
 
@@ -163,6 +236,10 @@ impl event::EventHandler for MainState {
             cell.draw(ctx)?;
         }
         self.player.draw(ctx)?;
+
+        for ray in &self.rays {
+            ray.draw(ctx)?;
+        }
 
         graphics::present(ctx)?;
         Ok(())
