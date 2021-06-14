@@ -7,15 +7,15 @@ use ggez::{Context, GameResult};
 const PI: f32 = std::f32::consts::PI;
 
 const GRID_CELL_SIZE: (f32, f32) = (50.0, 50.0);
-
 const GRID_SIZE: (u16, u16) = (10, 10);
-
 const CELL_NUMBER: usize = (GRID_SIZE.0 * GRID_SIZE.1) as usize;
 
-const WINDOW_SIZE: (f32, f32) = (
-    GRID_SIZE.0 as f32 * GRID_CELL_SIZE.0,
-    GRID_SIZE.1 as f32 * GRID_CELL_SIZE.1,
-);
+const WINDOW_HEIGHT: f32 = GRID_SIZE.1 as f32 * GRID_CELL_SIZE.1;
+
+const GRID_WINDOW_SIZE: (f32, f32) = (GRID_SIZE.0 as f32 * GRID_CELL_SIZE.0, WINDOW_HEIGHT);
+const MAX_RAY_LENGTH: f32 = 700.0;
+
+const WORLD_WINDOW_WIDTH: f32 = 1000.0;
 
 const PLAYER_SIZE: f32 = 10.0;
 const PLAYER_ROTATION_SPEED: f32 = 0.1;
@@ -149,8 +149,29 @@ impl Ray {
             },
         ];
 
-        let line = graphics::Mesh::new_line(ctx, &points, 1.0, Color::WHITE)?;
+        let line = graphics::Mesh::new_line(ctx, &points, 0.5, Color::WHITE)?;
         graphics::draw(ctx, &line, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
+    }
+
+    fn draw_wall(&self, ctx: &mut Context) -> GameResult<()> {
+        // We multiply the cos to prevent fisheye effect
+        // https://www.permadi.com/tutorial/raycast/rayc8.html
+        let wall_height = WINDOW_HEIGHT
+            - 1.5 * WINDOW_HEIGHT * self.length * self.angle_offset.cos() / MAX_RAY_LENGTH;
+        let bounds = graphics::Rect {
+            x: GRID_WINDOW_SIZE.0
+                + (WORLD_WINDOW_WIDTH / 2.0)
+                + WORLD_WINDOW_WIDTH * self.angle_offset / RAYS_CONE_ANGLE,
+            y: (WINDOW_HEIGHT - wall_height) / 2.0,
+            w: WORLD_WINDOW_WIDTH / NUMBER_OF_RAYS as f32,
+            h: wall_height,
+        };
+
+        let mode = graphics::DrawMode::fill();
+        let color = [1.0, 1.0, 1.0, 1.0];
+
+        let rectangle = graphics::Mesh::new_rectangle(ctx, mode, bounds, color.into())?;
+        graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
     }
 
     fn is_facing_up(&mut self) -> bool {
@@ -187,7 +208,7 @@ impl Ray {
         } else if self.is_facing_right() {
             GRID_CELL_SIZE.0 - self.x % GRID_CELL_SIZE.0
         } else {
-            1000.0
+            MAX_RAY_LENGTH
         }
     }
 
@@ -197,7 +218,7 @@ impl Ray {
         } else if self.is_facing_down() {
             GRID_CELL_SIZE.1 - self.y % GRID_CELL_SIZE.1
         } else {
-            1000.0
+            MAX_RAY_LENGTH
         }
     }
 
@@ -217,7 +238,7 @@ impl Ray {
 
         // Compute the sequence of intersection positions between the ray and horizontal lines
         if self.is_horizontal() {
-            return 1000.0;
+            return MAX_RAY_LENGTH;
         }
 
         let mut horizontal_intersection_x = self.x + y0 / tan;
@@ -228,10 +249,10 @@ impl Ray {
             // The ray is out of bound and it didn't meet any wall
             if horizontal_intersection_x < 0.0
                 || horizontal_intersection_y < 0.0
-                || horizontal_intersection_x > WINDOW_SIZE.0
-                || horizontal_intersection_y > WINDOW_SIZE.1
+                || horizontal_intersection_x > GRID_WINDOW_SIZE.0
+                || horizontal_intersection_y > GRID_WINDOW_SIZE.1
             {
-                return 1000.0;
+                return MAX_RAY_LENGTH;
             }
 
             let m_x = get_column_index(horizontal_intersection_x);
@@ -271,7 +292,7 @@ impl Ray {
 
         // Compute the sequence of intersection positions between the ray and horizontal lines
         if self.is_vertical() {
-            return 1000.0;
+            return MAX_RAY_LENGTH;
         }
 
         let mut horizontal_intersection_x = self.x + x0;
@@ -282,10 +303,10 @@ impl Ray {
             // The ray is out of bound and it didn't meet any wall
             if horizontal_intersection_x < 0.0
                 || horizontal_intersection_y < 0.0
-                || horizontal_intersection_x > WINDOW_SIZE.0
-                || horizontal_intersection_y > WINDOW_SIZE.1
+                || horizontal_intersection_x > GRID_WINDOW_SIZE.0
+                || horizontal_intersection_y > GRID_WINDOW_SIZE.1
             {
-                return 1000.0;
+                return MAX_RAY_LENGTH;
             }
 
             m_x = if self.is_facing_left() {
@@ -333,8 +354,8 @@ struct Player {
 impl Player {
     fn new() -> Self {
         Player {
-            x: WINDOW_SIZE.0 / 2.0,
-            y: WINDOW_SIZE.1 / 2.0,
+            x: GRID_WINDOW_SIZE.0 / 2.0,
+            y: GRID_WINDOW_SIZE.1 / 2.0,
             orientation: 0.0,
         }
     }
@@ -432,6 +453,10 @@ impl event::EventHandler for MainState {
             ray.draw(ctx)?;
         }
 
+        for ray in &self.rays {
+            ray.draw_wall(ctx)?;
+        }
+
         graphics::present(ctx)?;
         Ok(())
     }
@@ -461,7 +486,10 @@ impl event::EventHandler for MainState {
 
 pub fn main() -> GameResult {
     let cb = ggez::ContextBuilder::new("Raycasting", "ggez").window_mode(
-        ggez::conf::WindowMode::default().dimensions(WINDOW_SIZE.0 + 1.0, WINDOW_SIZE.1 + 1.0),
+        ggez::conf::WindowMode::default().dimensions(
+            GRID_WINDOW_SIZE.0 + 1.0 + GRID_WINDOW_SIZE.0 * 2.0,
+            GRID_WINDOW_SIZE.1 + 1.0,
+        ),
     );
     let (ctx, event_loop) = cb.build()?;
 
