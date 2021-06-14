@@ -22,7 +22,7 @@ const PLAYER_ROTATION_SPEED: f32 = 0.1;
 const PLAYER_MOVE_SPEED: f32 = 3.0;
 
 const RAYS_CONE_ANGLE: f32 = PI / 6.0;
-const NUMBER_OF_RAYS: u16 = 50;
+const NUMBER_OF_RAYS: u16 = 150;
 
 #[rustfmt::skip]
 const MAP: [i32; CELL_NUMBER] = [
@@ -114,6 +114,7 @@ struct Ray {
     orientation: f32,  // Orientation of the player. Same for all rays
     angle_offset: f32, // Offset for this specific ray
     length: f32,
+    hit_vertical: bool,
 }
 
 impl Ray {
@@ -124,6 +125,7 @@ impl Ray {
             angle_offset: 0.0,
             orientation: 0.0,
             length: 0.0,
+            hit_vertical: false,
         }
     }
 
@@ -134,6 +136,7 @@ impl Ray {
             angle_offset,
             orientation,
             length: 0.0,
+            hit_vertical: false,
         }
     }
 
@@ -149,7 +152,7 @@ impl Ray {
             },
         ];
 
-        let line = graphics::Mesh::new_line(ctx, &points, 0.5, Color::WHITE)?;
+        let line = graphics::Mesh::new_line(ctx, &points, 0.1, Color::WHITE)?;
         graphics::draw(ctx, &line, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
     }
 
@@ -168,7 +171,11 @@ impl Ray {
         };
 
         let mode = graphics::DrawMode::fill();
-        let color = [1.0, 1.0, 1.0, 1.0];
+        let color = if self.hit_vertical {
+            [0.8, 0.8, 0.8, 1.0]
+        } else {
+            [0.7, 0.7, 0.7, 1.0]
+        };
 
         let rectangle = graphics::Mesh::new_rectangle(ctx, mode, bounds, color.into())?;
         graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
@@ -331,10 +338,15 @@ impl Ray {
     }
 
     fn update_length(&mut self, grid: &mut [Cell; CELL_NUMBER]) {
-        self.length = f32::min(
-            self.get_length_vertical_collision(grid),
-            self.get_length_horizontal_collision(grid),
-        );
+        let vertical = self.get_length_vertical_collision(grid);
+        let horizontal = self.get_length_horizontal_collision(grid);
+        if vertical < horizontal {
+            self.length = vertical;
+            self.hit_vertical = true;
+        } else {
+            self.length = horizontal;
+            self.hit_vertical = false;
+        }
     }
 
     fn update_position(&mut self, player: &mut Player) -> GameResult {
